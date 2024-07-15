@@ -39,13 +39,7 @@ import subprocess
 import shutil
 import copy
 
-# from setuptools import find_packages, setup
-# from setuptools.command import install_lib
-# from distutils.command import install_data
 from distutils.util import byte_compile
-
-DEPENDENCIES=[]
-
 
 def getMajorVersion():
     return sys.version_info[0]
@@ -75,22 +69,6 @@ def extractArchive(filepath, dest_dir):
 
     return lib_build_dir
 
-# def parseDependency():
-#     for library in DEPENDENCIES:
-#         setup_script = "setup.py"
-#         options = None
-
-#         if len(library) == 1:
-#             lib_path = library[0]
-#         elif len(library) == 2:
-#             lib_path, setup_script = library
-#         elif len(library) == 3:
-#             lib_path, setup_script, options = library
-#         else:
-#             lib_path = None
-
-#         yield lib_path, setup_script, options
-
 def pyc3to2(pyfile):
     '''python3 put pyc in a __pycache__ directory and padding a version specific tag after file
     name, to enable run pyc only packages, we need to change new-style structure back to python2
@@ -112,42 +90,28 @@ def pyc3to2(pyfile):
 
 
 class PackageSetting(object):
-    def __init__(self, name=None, packages={}, data={}, files=[], deps=[]):
+    def __init__(self, name=None, packages={}, data={}, deps=[]):
         """
             packages    package setup
-            data       package data
-            files       other file like conf
+            data        package data
             deps        third party libraries dependent on
         """
         self._name = name
         self._packages = packages
         self._package_data = data
-        self._package_datafiles = files
         self._package_deps = deps
 
     @property
-    def names(self):
-        return self._packages.keys()
-
-    @property
     def name(self):
-        return self._packages
+        return self._name
 
     @property
     def packages(self):
         return self._packages
 
     @property
-    def directory(self):
-        return self._packages
-
-    @property
     def data(self):
         return self._package_data
-
-    @property
-    def files(self):
-        return self._package_datafiles
 
     @property
     def deps(self):
@@ -157,221 +121,18 @@ class PackageSetting(object):
         if not setting:
             return self
 
-        self.update(setting.directory, setting.data, setting.files)
+        self.update(setting.packages, setting.data, setting.deps)
         return self
 
-    def update(self, packages={}, data={}, files=[], deps=[]):
+    def update(self, packages={}, data={}, deps=[]):
         if packages:
             self._packages.update(packages)
 
         if data:
             self._package_data.update(data)
 
-        if files:
-            self._package_datafiles.extend(files)
-
         if deps:
             self._package_deps.extend(deps)
-
-
-# class SetupPackageLib(install_lib.install_lib):
-#     def __init__(self, dist):
-#         install_lib.install_lib.__init__(self, dist)
-#         self.__basedir = None
-
-#         self.python = "python"
-#         if getMajorVersion() == 3:
-#             self.python += "3"
-
-#         print("Package dist name: {}".format(dist.get_fullname()))
-
-#     def finalize_options(self):
-#         install_lib.install_lib.finalize_options(self)
-
-#         # only for debug purpose
-#         # print(self.__dict__)
-
-#         self.__basedir = os.path.normpath(self.install_dir + "/../../..")
-#         self.install_dir = os.path.normpath(self.install_dir)
-
-#         print("Install base directory: {}".format(self.__basedir))
-#         print("Install directory: {}".format(self.install_dir))
-
-#     def run(self):
-#         global DEPENDENCIES
-#         install_lib.install_lib.run(self)
-
-#         build_base_dir = os.path.abspath(self.__basedir)
-#         abs_install_dir = os.path.abspath(self.install_dir)
-
-#         proj_home = os.getcwd()
-#         print("Build Home: {}".format(proj_home))
-#         print("Building base: {}".format(build_base_dir))
-
-
-#         for lib_path, setup_script, options in parseDependency():
-#             lib_build_dir = None
-#             delete_after_build = True
-
-#             os.chdir(proj_home)
-#             if os.path.isdir(lib_path):
-#                 # use relative path, or else byte_compile will throw an exception
-#                 if not setup_script:
-#                     # copy library to install site-packages directory
-#                     lib_build_dir = os.path.join(self.install_dir, os.path.basename(lib_path))
-#                 else:
-#                     # copy library to build directory
-#                     lib_build_dir = os.path.join(self.__basedir, os.path.basename(lib_path))
-
-#                 shutil.copytree(lib_path, lib_build_dir)
-#             elif os.path.isfile(lib_path):
-#                 if not setup_script:
-#                     # extract library to install site-packages directory
-#                     lib_build_dir = extractArchive(lib_path, abs_install_dir)
-#                 else:
-#                     # extract library to build directory
-#                     lib_build_dir = extractArchive(lib_path, build_base_dir)
-
-#             if not os.path.isdir(lib_build_dir):
-#                 print("Build directory not found: {}".format(lib_build_dir, file=sys.stderr))
-#                 continue
-
-#             print("Build third package: {}".format(lib_path))
-
-#             if not setup_script:
-#                 os.chdir(proj_home)
-
-#                 sourcefile_list = []
-#                 for root, dirs, files in os.walk(lib_build_dir):
-#                     for name in files:
-#                         if name.endswith(".py"):
-#                             filepath = os.path.join(root, name)
-#                             sourcefile_list.append(filepath)
-#                             print("add source file: {}".format(filepath))
-
-#                 os.chdir(proj_home)
-#                 self.byte_compile(sourcefile_list)
-#                 os.chdir(proj_home)
-#             else:
-#                 subdir = os.path.dirname(setup_script)
-#                 setup_script_base = os.path.basename(setup_script)
-#                 os.chdir(lib_build_dir + "/" + subdir)
-
-#                 print("Current working directory: " + os.getcwd())
-
-#                 subprocess.check_call('echo PYTHONPATH=$PYTHONPATH', shell=True)
-
-#                 cmdlist = [self.python, setup_script_base, 'install_lib']
-#                 if options:
-#                     cmdlist.append(options)
-
-#                 retcode = subprocess.check_call(cmdlist + ['-d', abs_install_dir])
-#                 if 0 != retcode:
-#                     print("Install package {} failed. quit!".format(lib_path), file=sys.stderr)
-#                     return
-
-#                 os.chdir(build_base_dir)
-#                 os.chdir(proj_home)
-
-#                 if delete_after_build:
-#                     print("Remove build dir ...")
-#                     shutil.rmtree(lib_build_dir)
-
-#                 print("Remove source file ...")
-#                 for root, dirs, files in os.walk(abs_install_dir):
-#                     for name in files:
-#                         srcfile = os.path.join(root, name)
-
-#                         if not name.endswith(".py"):
-#                             continue
-
-#                         if getMajorVersion() == 3:
-#                             pyc3to2(srcfile)
-
-#                         os.remove(srcfile)
-
-#     def byte_compile(self, files):
-#         # install_lib.install_lib.byte_compile(self, files)
-#         super(SetupPackageLib, self).byte_compile(files)
-
-#         for srcfile in files:
-#             if not srcfile.endswith(".py"):
-#                 continue
-
-#             if getMajorVersion() == 3:
-#                 pyc3to2(srcfile)
-
-#             os.remove(srcfile)
-
-
-# class SetupPackageData(install_data.install_data):
-#     def run(self):
-#         from distutils.util import change_root, convert_path
-
-#         self.mkpath(self.install_dir)
-#         for f in self.data_files:
-#             if isinstance(f, str):
-#                 # it's a simple file, so copy it
-#                 f = convert_path(f)
-#                 print("Installing file %s right in '%s'" % (f, self.install_dir))
-
-#                 (out, _) = self.copy_file(f, self.install_dir)
-#                 self.outfiles.append(out)
-#             else:
-#                 # it's a tuple with path to install to and a list of files
-#                 dir = convert_path(f[0])
-#                 if not os.path.isabs(dir):
-#                     dir = os.path.join(self.install_dir, dir)
-#                 elif self.root:
-#                     dir = change_root(self.root, dir)
-#                 self.mkpath(dir)
-
-#                 if isinstance(f[1], list):
-#                     # If there are no files listed, the user must be
-#                     # trying to create an empty directory, so add the
-#                     # directory to the list of output files.
-#                     self.outfiles.append(dir)
-#                     # Copy files, adding them to the list of output files.
-#                     for data in f[1]:
-#                         data = convert_path(data)
-#                         if os.path.isdir(data):
-#                             out = self.copy_tree(data, dir)
-#                             self.outfiles.extend(out)
-#                         else:
-#                             (out, _) = self.copy_file(data, dir)
-#                             self.outfiles.append(out)
-#                 elif isinstance(f[1], str) and os.path.isdir(f[1]):
-#                     out = self.copy_tree(f[1], dir)
-#                     self.outfiles.extend(out)
-
-# def legacyPackage(**kwargs):
-
-#     setting = copy.deepcopy(kwargs.get("setting", None))
-#     if not setting:
-#         print("Package setting is required", file=sys.stderr)
-#         return
-    
-#     # remove custom property
-#     del kwargs["setting"]
-
-#     global DEPENDENCIES
-#     DEPENDENCIES=setting.deps
-
-#     print("Library dependencies: ")
-#     for lib_path, setup_script, options in parseDependency():
-#         print("\t{}, {}, {}".format(lib_path, setup_script, options));
-
-#     setup(packages=setting.names,
-#           package_dir=setting.directory,
-#           package_data=setting.data,
-#           data_files=setting.files,
-#           cmdclass={
-#               'install_lib': SetupPackageLib,
-#               # data_files
-#               'install_data': SetupPackageData
-#           },
-#           **kwargs)
-
 
 class PackageSetup(object):
     def __init__(self, name=None, packages={}, data={}, deps=[], targetDirectory=None, buildBinary=False) -> None:
@@ -470,7 +231,7 @@ class PackageSetup(object):
 
         print("Build package: {}".format(package_path))
 
-        if not setup_script:
+        if not setup_script or not os.path.exists(os.path.join(lib_build_dir, setup_script)):
             os.chdir(self.proj_home)
 
             sourcefile_list = []
@@ -536,28 +297,22 @@ class PackageSetup(object):
         os.chdir(self.proj_home)
 
         for f in self._package_data:
-            if isinstance(f, str):
-                # it's a simple file, so copy it
-                f = convert_path(f)
-                print("Installing file %s right in '%s'" % (f, self.installDirectory))
-                shutil.copyfile(f, self.installDirectory)
-            else:
-                # it's a tuple with path to install to and a list of files
-                dir = convert_path(f[0])
-                if not os.path.isabs(dir):
-                    dir = os.path.join(self.installDirectory, dir)
+            # it's a tuple with path to install to and a list of files
+            dir = convert_path(f[0])
+            if not os.path.isabs(dir):
+                dir = os.path.join(self.installDirectory, dir)
 
-                os.makedirs(dir)
+            os.makedirs(dir)
 
-                if isinstance(f[1], list):
-                    for data in f[1]:
-                        data = convert_path(data)
-                        if os.path.isdir(data):
-                            shutil.copy_tree(data, dir)
-                        else:
-                            shutil.copy_file(data, dir)
-                elif isinstance(f[1], str) and os.path.isdir(f[1]):
-                    shutil.copy_tree(f[1], dir)
+            if isinstance(f[1], list):
+                for data in f[1]:
+                    data = convert_path(data)
+                    if os.path.isdir(data):
+                        shutil.copy_tree(data, dir)
+                    else:
+                        shutil.copy_file(data, dir)
+            elif isinstance(f[1], str) and os.path.isdir(f[1]):
+                shutil.copy_tree(f[1], dir)
 
     def run(self):
         self.install()
